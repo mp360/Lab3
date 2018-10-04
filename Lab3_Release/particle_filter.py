@@ -53,7 +53,7 @@ def measurement_update(particles, measured_marker_list, grid):
     p = np.array([1.0]*len(particles))
 
     for i,particle in enumerate(particles):
-        if not grid.is_in(particle.x,particle.y):
+        if not grid.is_in(particle.x,particle.y): 
             p[i] = 0
             pass
         pmarkers = particle.read_markers(grid)
