@@ -91,7 +91,7 @@ def measurement_update(particles, measured_marker_list, grid):
                             (angleDiff**2)/(2*(MARKER_ROT_SIGMA**2)))
                         probFunc[i] = abs(probFunc[i]) * np.exp(gaussPower)
             elif lenMeasuredList == 0 and lenParMarkerList==0:
-                j = 4
+                j = 4 #DO NOTHING (keep probFnc[i] = 1)
             elif lenMeasuredList==0 or lenParMarkerList==0:
                 probFunc[i] *= SPURIOUS_DETECTION_RATE * DETECTION_FAILURE_RATE
             errorCoefficient = (DETECTION_FAILURE_RATE**falsePos) * (SPURIOUS_DETECTION_RATE**falseNegs)
