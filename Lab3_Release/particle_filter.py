@@ -43,7 +43,7 @@ def measurement_update(particles, measured_marker_list, grid):
                 rh -- marker's relative heading in robot's frame, in degree
                 * Note that the robot can only see markers which is in its camera field of view,
                 which is defined by ROBOT_CAMERA_FOV_DEG in setting.py
-				* Note that the robot can see mutliple markers at once, and may not see any one
+                * Note that the robot can see mutliple markers at once, and may not see any one
         grid -- grid world map, which contains the marker information,
                 see grid.py and CozGrid for definition
                 Can be used to evaluate particles
