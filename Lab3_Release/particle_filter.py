@@ -1,4 +1,5 @@
 #! python3
+#   AUTHORS: Manan Patel, Parrish McCall
 from grid import *
 from particle import Particle
 from utils import *
