@@ -112,13 +112,8 @@ def measurement_update(particles, measured_marker_list, grid):
     for i in range(resampleThreshold):
         measured_particles += [half1[i]]
 
-    # half2List = []
     for i in partIndices:
         measured_particles += [particles[i]]
-
-    # for i in range(resampleThreshold, len(measured_particles)):
-    #     if (i - (resampleThreshold) < len(half2List)):
-    #         measured_particles += [half2List[i - (resampleThreshold)]]
 
     return measured_particles
 
