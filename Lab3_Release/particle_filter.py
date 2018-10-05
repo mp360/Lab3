@@ -14,19 +14,17 @@ def motion_update(particles, odom):
         Returns: the list of particles represents belief \tilde{p}(x_{t} | u_{t})
                 after motion update
     """
-    
-    
+
+
     motion_particles = []
-    dx,dy,dh = odom
 
     for particle in particles:
-        odom_gayss =  add_odometry_noise(odom,ODOM_HEAD_SIGMA,ODOM_TRANS_SIGMA)
-        dx,dy,dh = odom_gayss
-        xr,yr = rotate_point(dx,dy,particle .h)
-        x = particle .x + xr
-        y = particle .y + yr
-        h = particle .h + dh
-        motion_particles.append(Particle(x,y,h))
+        rx, ry, rh = add_odometry_noise(odom, ODOM_HEAD_SIGMA, ODOM_TRANS_SIGMA)
+        xr,yr = rotate_point(rx, ry, particle.h)
+        x = particle.x + xr
+        y = particle.y + yr
+        h = particle.h + rh
+        motion_particles.append(Particle(x, y, h))
     return motion_particles
 
 # ------------------------------------------------------------------------
@@ -50,52 +48,45 @@ def measurement_update(particles, measured_marker_list, grid):
                 after measurement update
     """
     measured_particles = []
-    p = np.array([1.0]*len(particles))
+    part = np.array([1.0] * len(particles))
 
-    for i,particle in enumerate(particles):
-        if not grid.is_in(particle.x,particle.y): 
-            p[i] = 0
-            pass
-        pmarkers = particle.read_markers(grid)
-        lp = max(0, len(pmarkers)-len(measured_marker_list))
-        lr = max(0, len(measured_marker_list)-len(pmarkers))
-
-        if len(measured_marker_list) ==0 and len(pmarkers)==0:
-            p[i] = 1
-        elif len(measured_marker_list)==0 or len(pmarkers)==0:
-            p[i] = DETECTION_FAILURE_RATE*SPURIOUS_DETECTION_RATE
+    for i, particle in enumerate(particles):
+        particleMarkers = particle.read_markers(grid)
+        if len(measured_marker_list) == 0 and len(particleMarkers) == 0:
+            part[i] = 1
+        elif len(measured_marker_list) == 0 or len(particleMarkers) == 0:
+            part[i] = DETECTION_FAILURE_RATE * SPURIOUS_DETECTION_RATE
         else:
-            for rm in measured_marker_list:
+            for markers in measured_marker_list:
+                distance = 0
+                angle = 0
 
+                for marker in particleMarkers:
+                    marker0 = marker[0]
+                    marker1 = marker[1]
+                    marker2 = marker[2]
+                    dist = grid_distance(markers[0], markers[1], marker0, marker1)
 
-                minDistance = None
-                diffAngle = None
+                    if not distance or distance > dist:
+                        distance = dist
+                        angle = diff_heading_deg(markers[2], marker2)
 
-                for pm in pmarkers:
+                power = - (distance**2)/(2*(MARKER_TRANS_SIGMA**2))
+                power -= (angle**2)/(2*(MARKER_ROT_SIGMA**2))
+                part[i] *= np.exp(power)
 
-                    pm0, pm1, pm2 = pm[0],pm[1],pm[2]
-                    d = grid_distance(rm[0],rm[1],pm0,pm1)
+        lengthParticle = max(0, len(particleMarkers) - len(measured_marker_list))
+        lengthList = max(0, len(measured_marker_list) - len(particleMarkers))
+        part[i] = max(part[i], DETECTION_FAILURE_RATE*SPURIOUS_DETECTION_RATE)
+        part[i] *= (DETECTION_FAILURE_RATE ** lengthParticle)
+        part[i] *= (SPURIOUS_DETECTION_RATE ** lengthList)
 
-                    if (not minDistance) or (minDistance > d):
-                        minDistance = d
-                        diffAngle = diff_heading_deg(rm[2],pm2)
-
-                power = - (minDistance**2)/(2*(MARKER_TRANS_SIGMA**2)) - (diffAngle**2)/(2*(MARKER_ROT_SIGMA**2))
-                p[i] *= np.exp(power)
-
-        p[i] = max(p[i], DETECTION_FAILURE_RATE*SPURIOUS_DETECTION_RATE)
-        p[i] *= (DETECTION_FAILURE_RATE**lp)
-        p[i] *= (SPURIOUS_DETECTION_RATE**lr)
-
-    p /= sum(p)
-
-
-    # Todo: resamplef
-    rPercent = 0.015
-    numRand = int(np.rint(rPercent*len(particles)))
-    indexes = np.random.choice(a=range(0,len(particles)),size=(len(particles) - numRand),replace=True,p=p).tolist()
-    measured_particles[0:numRand] = Particle.create_random(numRand,grid)
-    measured_particles[numRand+1:-1] = [particles[i] for i in indexes]
+    part = part / sum(part)
+    random = .01 * len(particles)
+    random = int(np.rint(random))
+    indexes = np.random.choice(a=range(0, len(particles)), size=(len(particles) - random),
+                               replace=True, p=part).tolist()
+    measured_particles[0:random] = Particle.create_random(random, grid)
+    measured_particles[random+1:-1] = [particles[i] for i in indexes]
 
     return measured_particles
-
