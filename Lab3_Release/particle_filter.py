@@ -1,13 +1,15 @@
 #! python3
 #   AUTHORS: Manan Patel, Parrish McCall
 from grid import *
-from particle import Particle
 from utils import *
 from setting import *
+
+from particle import Particle
 import numpy as np
 
 
 def motion_update(particles, odom):
+
     """ Particle filter motion update
         Arguments:
         particles -- input list of particle represents belief p(x_{t-1} | u_{t-1})
@@ -15,6 +17,7 @@ def motion_update(particles, odom):
         odom -- odometry to move (dx, dy, dh) in *robot local frame*
         Returns: the list of particles represents belief \tilde{p}(x_{t} | u_{t})
                 after motion update
+        references: https://github.com/mxie33/CS3630-robotics/tree/1c0d8c1e92d81e7f74f1930b9d2c64a35aab0062
     """
 
 
@@ -50,6 +53,8 @@ def measurement_update(particles, measured_marker_list, grid):
                 Can be used to evaluate particles
         Returns: the list of particles represents belief p(x_{t} | u_{t})
                 after measurement update
+        references: https://github.com/mxie33/CS3630-robotics/tree/1c0d8c1e92d81e7f74f1930b9d2c64a35aab0062
+
     """
     measured_particles = []
     probSDFailure = SPURIOUS_DETECTION_RATE* DETECTION_FAILURE_RATE
@@ -102,7 +107,7 @@ def measurement_update(particles, measured_marker_list, grid):
         probFunc = np.true_divide(probFunc, sum(probFunc))
 
     resamplePercent = 0.014
-    resampleThreshold = int(np.rint(resamplePercent*len(particles)))
+    resampleThreshold = int(np.rint(len(particles) * resamplePercent))
     partIndices = list(np.random.choice(a=range(abs(len(particles))),
         size=abs(len(particles) - resampleThreshold),replace=True,p=probFunc))
 
