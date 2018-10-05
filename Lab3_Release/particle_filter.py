@@ -1,3 +1,4 @@
+#! python3
 from grid import *
 from particle import Particle
 from utils import *
@@ -14,19 +15,19 @@ def motion_update(particles, odom):
         Returns: the list of particles represents belief \tilde{p}(x_{t} | u_{t})
                 after motion update
     """
-    
-    
-    motion_particles = []
-    dx,dy,dh = odom
 
-    for particle in particles:
-        odom_gayss =  add_odometry_noise(odom,ODOM_HEAD_SIGMA,ODOM_TRANS_SIGMA)
-        dx,dy,dh = odom_gayss
-        xr,yr = rotate_point(dx,dy,particle .h)
-        x = particle .x + xr
-        y = particle .y + yr
-        h = particle .h + dh
-        motion_particles.append(Particle(x,y,h))
+
+    motion_particles = []
+    for prt in particles:
+        odomGaussNoiseApplied =  add_odometry_noise(odom,ODOM_HEAD_SIGMA,ODOM_TRANS_SIGMA)
+        dx = odomGaussNoiseApplied[0]
+        dy = odomGaussNoiseApplied[1]
+        dh = odomGaussNoiseApplied[2]
+        xRotatedH,yRotatedH = rotate_point(dx,dy,prt.h)
+        newY = prt.y + yRotatedH
+        newX = prt.x + xRotatedH
+        newH = prt.h + dh
+        motion_particles.append(Particle(newX,newY,newH))
     return motion_particles
 
 # ------------------------------------------------------------------------
@@ -50,52 +51,73 @@ def measurement_update(particles, measured_marker_list, grid):
                 after measurement update
     """
     measured_particles = []
-    p = np.array([1.0]*len(particles))
+    probSDFailure = SPURIOUS_DETECTION_RATE* DETECTION_FAILURE_RATE
+    probFunc = np.array([], dtype=float)
+    for i in range(len(particles)):
+        probFunc = np.append(probFunc, 1.0)
+    # print(len(probFunc))
+    # print(len(particles))
 
     for i,particle in enumerate(particles):
-        if not grid.is_in(particle.x,particle.y): 
-            p[i] = 0
-            pass
-        pmarkers = particle.read_markers(grid)
-        lp = max(0, len(pmarkers)-len(measured_marker_list))
-        lr = max(0, len(measured_marker_list)-len(pmarkers))
+        curXCoord = particle.x
+        curYCoord = particle.y
+        if grid.is_in(curXCoord,curYCoord):
+            parmarkers = particle.read_markers(grid)
 
-        if len(measured_marker_list) ==0 and len(pmarkers)==0:
-            p[i] = 1
-        elif len(measured_marker_list)==0 or len(pmarkers)==0:
-            p[i] = DETECTION_FAILURE_RATE*SPURIOUS_DETECTION_RATE
+            falsePos = max(abs(0),
+                abs(len(parmarkers))-len(measured_marker_list))
+
+            lenMeasuredList = len(measured_marker_list)
+            lenParMarkerList = len(parmarkers)
+
+            falseNegs = max(abs(0),
+                abs(len(measured_marker_list))-len(parmarkers))
+
+            if not lenMeasuredList == 0 and not lenParMarkerList == 0:
+                for realMarker in measured_marker_list:
+                    angleDiff = None
+                    minDist = math.inf
+                    for predictedMarker in parmarkers:
+                        eucDist = grid_distance(realMarker[0],realMarker[1],
+                            predictedMarker[0],predictedMarker[1])
+
+                        if minDist > eucDist:
+                            minDist = eucDist
+                            angleDiff = abs(diff_heading_deg(realMarker[2],predictedMarker[2]))
+
+                    if angleDiff is not None:
+                        gaussPower = -1 *((minDist**2)/(2*(MARKER_TRANS_SIGMA**2)) +
+                            (angleDiff**2)/(2*(MARKER_ROT_SIGMA**2)))
+                        probFunc[i] = abs(probFunc[i]) * np.exp(gaussPower)
+            elif lenMeasuredList == 0 and lenParMarkerList==0:
+                j = 4
+            elif lenMeasuredList==0 or lenParMarkerList==0:
+                probFunc[i] *= SPURIOUS_DETECTION_RATE * DETECTION_FAILURE_RATE
+            errorCoefficient = (DETECTION_FAILURE_RATE**falsePos) * (SPURIOUS_DETECTION_RATE**falseNegs)
+            probFunc[i] = errorCoefficient * max(probFunc[i], probSDFailure)
         else:
-            for rm in measured_marker_list:
+            probFunc[i] = 0
+    if sum(probFunc) is not 0:
+        probFunc = np.true_divide(probFunc, sum(probFunc))
 
+    resamplePercent = 0.014
+    resampleThreshold = int(np.rint(resamplePercent*len(particles)))
+    partIndices = list(np.random.choice(a=range(abs(len(particles))),
+        size=abs(len(particles) - resampleThreshold),replace=True,p=probFunc))
 
-                minDistance = None
-                diffAngle = None
+    # print(len(range(randThreshold)))
+    half1 = Particle.create_random(resampleThreshold, grid)
 
-                for pm in pmarkers:
+    for i in range(resampleThreshold):
+        measured_particles += [half1[i]]
 
-                    pm0, pm1, pm2 = pm[0],pm[1],pm[2]
-                    d = grid_distance(rm[0],rm[1],pm0,pm1)
+    # half2List = []
+    for i in partIndices:
+        measured_particles += [particles[i]]
 
-                    if (not minDistance) or (minDistance > d):
-                        minDistance = d
-                        diffAngle = diff_heading_deg(rm[2],pm2)
-
-                power = - (minDistance**2)/(2*(MARKER_TRANS_SIGMA**2)) - (diffAngle**2)/(2*(MARKER_ROT_SIGMA**2))
-                p[i] *= np.exp(power)
-
-        p[i] = max(p[i], DETECTION_FAILURE_RATE*SPURIOUS_DETECTION_RATE)
-        p[i] *= (DETECTION_FAILURE_RATE**lp)
-        p[i] *= (SPURIOUS_DETECTION_RATE**lr)
-
-    p /= sum(p)
-
-
-    # Todo: resamplef
-    rPercent = 0.015
-    numRand = int(np.rint(rPercent*len(particles)))
-    indexes = np.random.choice(a=range(0,len(particles)),size=(len(particles) - numRand),replace=True,p=p).tolist()
-    measured_particles[0:numRand] = Particle.create_random(numRand,grid)
-    measured_particles[numRand+1:-1] = [particles[i] for i in indexes]
+    # for i in range(resampleThreshold, len(measured_particles)):
+    #     if (i - (resampleThreshold) < len(half2List)):
+    #         measured_particles += [half2List[i - (resampleThreshold)]]
 
     return measured_particles
 
